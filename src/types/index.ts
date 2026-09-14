@@ -6,14 +6,23 @@ export interface MenuItem {
   description: string;
   price: number;
   discountPrice?: number;
+  discount_price?: number;
   category: CategoryName;
+  category_name?: string;
   image: string;
+  image_url?: string;
   available: boolean;
+  is_available?: boolean;
   featured?: boolean;
+  is_featured?: boolean;
+  is_featured_this_week?: boolean;
   isSpecial?: boolean;
+  is_special?: boolean;
   ingredients?: string[];
   preparationTime?: string;
+  preparation_time?: string;
   createdAt?: string;
+  created_at?: string;
 }
 
 export interface Category {
@@ -153,7 +162,34 @@ export interface CartLine {
   instructions: string;
 }
 
-export type Page = "home" | "menu" | "cooking" | "contact" | "cart" | "checkout" | "confirm" | "admin";
+export interface FAQItem {
+  id: string;
+  question: string;
+  answer: string;
+  category?: string;
+}
+
+export interface ServicePackage {
+  id: string;
+  title: string;
+  subtitle: string;
+  price: string;
+  features: string[];
+  recommendedFor: string;
+  isPopular?: boolean;
+}
+
+export type Page =
+  | "home"
+  | "menu"
+  | "cooking"
+  | "about"
+  | "track"
+  | "contact"
+  | "cart"
+  | "checkout"
+  | "confirm"
+  | "admin";
 
 export type AdminTab =
   | "overview"
@@ -164,3 +200,4 @@ export type AdminTab =
   | "weekly"
   | "content"
   | "settings";
+

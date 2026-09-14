@@ -24,16 +24,27 @@ import { API_BASE_URL } from "../services/api";
 
 // Helper to grab the admin token for protected API routes
 const getAuthHeaders = (): Record<string, string> => {
-  const token =
-    localStorage.getItem("pb_delicacies_admin_token") ||
-    localStorage.getItem("pb_delicacies_admin_auth_v2");
-  return token ? { Authorization: `Bearer ${token}` } : {};
+  try {
+    if (typeof window !== "undefined" && window.localStorage) {
+      const token =
+        localStorage.getItem("pb_delicacies_admin_token") ||
+        localStorage.getItem("pb_delicacies_admin_auth_v2");
+      return token ? { Authorization: `Bearer ${token}` } : {};
+    }
+    return {};
+  } catch (_) {
+    return {};
+  }
 };
 
 // Clear stale or rejected tokens from storage
 const clearAdminTokens = () => {
-  localStorage.removeItem("pb_delicacies_admin_token");
-  localStorage.removeItem("pb_delicacies_admin_auth_v2");
+  try {
+    if (typeof window !== "undefined" && window.localStorage) {
+      localStorage.removeItem("pb_delicacies_admin_token");
+      localStorage.removeItem("pb_delicacies_admin_auth_v2");
+    }
+  } catch (_) {}
 };
 
 interface AppContextType {
@@ -94,74 +105,135 @@ export function AppContextProvider({ children }: { children: React.ReactNode }) 
   const [page, setPageState] = useState<Page>("home");
   const [adminTab, setAdminTab] = useState<AdminTab>("overview");
 
-  const [menu, setMenu] = useState<MenuItem[]>([]);
-  const [categories, setCategories] = useState<Category[]>(INITIAL_CATEGORIES);
-  const [orders, setOrders] = useState<Order[]>(INITIAL_ORDERS);
-  const [customers, setCustomers] = useState<Customer[]>(INITIAL_CUSTOMERS);
-  const [settings, setSettings] = useState<SiteSettings>(INITIAL_SETTINGS);
-  const [loading, setLoading] = useState(true);
+  const [menu, setMenu] = useState<MenuItem[]>(() => {
+    try {
+      const items = loadFromStorage<MenuItem[]>(STORAGE_KEYS.MENU, INITIAL_MENU);
+      return Array.isArray(items) && items.length > 0 ? items : INITIAL_MENU;
+    } catch (_) {
+      return INITIAL_MENU || [];
+    }
+  });
 
-  const [cart, setCart] = useState<CartLine[]>(() => cartStorage.getCart());
+  const [categories, setCategories] = useState<Category[]>(() => {
+    try {
+      const cats = loadFromStorage<Category[]>(STORAGE_KEYS.CATEGORIES, INITIAL_CATEGORIES);
+      return Array.isArray(cats) && cats.length > 0 ? cats : INITIAL_CATEGORIES;
+    } catch (_) {
+      return INITIAL_CATEGORIES || [];
+    }
+  });
+
+  const [orders, setOrders] = useState<Order[]>(() => {
+    try {
+      const ords = loadFromStorage<Order[]>(STORAGE_KEYS.ORDERS, INITIAL_ORDERS);
+      return Array.isArray(ords) && ords.length > 0 ? ords : INITIAL_ORDERS;
+    } catch (_) {
+      return INITIAL_ORDERS || [];
+    }
+  });
+
+  const [customers, setCustomers] = useState<Customer[]>(() => {
+    try {
+      const custs = loadFromStorage<Customer[]>(STORAGE_KEYS.CUSTOMERS, INITIAL_CUSTOMERS);
+      return Array.isArray(custs) && custs.length > 0 ? custs : INITIAL_CUSTOMERS;
+    } catch (_) {
+      return INITIAL_CUSTOMERS || [];
+    }
+  });
+
+  const [settings, setSettings] = useState<SiteSettings>(() => {
+    try {
+      const s = loadFromStorage<SiteSettings>(STORAGE_KEYS.SETTINGS, INITIAL_SETTINGS);
+      return s && s.business && s.hero ? s : INITIAL_SETTINGS;
+    } catch (_) {
+      return INITIAL_SETTINGS;
+    }
+  });
+
+  const [loading, setLoading] = useState(false);
+
+  const [cart, setCart] = useState<CartLine[]>(() => {
+    try {
+      const c = cartStorage.getCart();
+      return Array.isArray(c) ? c : [];
+    } catch (_) {
+      return [];
+    }
+  });
   const [detailItem, setDetailItem] = useState<MenuItem | null>(null);
   const [toast, setToast] = useState<string | null>(null);
 
-  const cartCount = useMemo(() => cart.reduce((s, l) => s + l.qty, 0), [cart]);
+  const cartCount = useMemo(() => {
+    try {
+      return Array.isArray(cart) ? cart.reduce((s, l) => s + (l?.qty || 1), 0) : 0;
+    } catch (_) {
+      return 0;
+    }
+  }, [cart]);
 
   useEffect(() => {
-    cartStorage.saveCart(cart);
+    try {
+      if (Array.isArray(cart)) {
+        cartStorage.saveCart(cart);
+      }
+    } catch (_) {}
   }, [cart]);
 
   const loadData = async () => {
     try {
-      setLoading(true);
-
-      const menuRes = await fetch(`${API_BASE_URL}/menu`);
-      if (menuRes.ok) {
-        const menuResult = await menuRes.json();
-        const rawMenu = menuResult.data || menuResult;
-        const formattedMenu: MenuItem[] = Array.isArray(rawMenu)
-          ? rawMenu.map((m: any) => ({
-              id: m.id,
-              name: m.name || "",
-              description: m.description || "",
-              price: Number(m.price) || 0,
-              discountPrice: m.discountPrice || m.discount_price || undefined,
-              category: typeof m.category === "string" ? m.category : (m.categories?.name || m.category_name || "Rice"),
-              image: m.image || m.image_url || "https://images.unsplash.com/photo-1665332195309-9d75071138f0?w=800&h=600&fit=crop&auto=format",
-              available: m.available !== undefined ? Boolean(m.available) : (m.is_available !== undefined ? Boolean(m.is_available) : true),
-              featured: m.featured !== undefined ? Boolean(m.featured) : Boolean(m.is_featured_this_week),
-              isSpecial: m.isSpecial !== undefined ? Boolean(m.isSpecial) : Boolean(m.is_special),
-              ingredients: Array.isArray(m.ingredients) ? m.ingredients : (typeof m.ingredients === "string" ? m.ingredients.split(",") : []),
-              preparationTime: m.preparationTime || m.preparation_time || "20-30 mins",
-              createdAt: m.createdAt || m.created_at,
-            }))
-          : [];
-        setMenu(formattedMenu);
+      const menuRes = await fetch(`${API_BASE_URL}/menu`).catch(() => null);
+      if (menuRes && menuRes.ok) {
+        const menuResult = await menuRes.json().catch(() => null);
+        const rawMenu = menuResult?.data || menuResult;
+        if (Array.isArray(rawMenu) && rawMenu.length > 0) {
+          const formattedMenu: MenuItem[] = rawMenu.map((m: any) => ({
+            id: m.id,
+            name: m.name || "",
+            description: m.description || "",
+            price: Number(m.price) || 0,
+            discountPrice: m.discountPrice || m.discount_price || undefined,
+            discount_price: m.discount_price || m.discountPrice || undefined,
+            category: typeof m.category === "string" ? m.category : (m.categories?.name || m.category_name || "Rice"),
+            category_name: typeof m.category === "string" ? m.category : (m.categories?.name || m.category_name || "Rice"),
+            image: m.image || m.image_url || "https://images.unsplash.com/photo-1665332195309-9d75071138f0?w=800&h=600&fit=crop&auto=format",
+            image_url: m.image_url || m.image || "https://images.unsplash.com/photo-1665332195309-9d75071138f0?w=800&h=600&fit=crop&auto=format",
+            available: m.available !== undefined ? Boolean(m.available) : (m.is_available !== undefined ? Boolean(m.is_available) : true),
+            is_available: m.is_available !== undefined ? Boolean(m.is_available) : (m.available !== undefined ? Boolean(m.available) : true),
+            featured: m.featured !== undefined ? Boolean(m.featured) : Boolean(m.is_featured_this_week || m.is_featured),
+            is_featured: m.is_featured !== undefined ? Boolean(m.is_featured) : Boolean(m.is_featured_this_week || m.featured),
+            isSpecial: m.isSpecial !== undefined ? Boolean(m.isSpecial) : Boolean(m.is_special),
+            is_special: m.is_special !== undefined ? Boolean(m.is_special) : Boolean(m.isSpecial),
+            ingredients: Array.isArray(m.ingredients) ? m.ingredients : (typeof m.ingredients === "string" ? m.ingredients.split(",") : []),
+            preparationTime: m.preparationTime || m.preparation_time || "20-30 mins",
+            preparation_time: m.preparation_time || m.preparationTime || "20-30 mins",
+            createdAt: m.createdAt || m.created_at || new Date().toISOString(),
+            created_at: m.created_at || m.createdAt || new Date().toISOString(),
+          }));
+          setMenu(formattedMenu);
+        }
       }
 
       const ordersRes = await fetch(`${API_BASE_URL}/orders`, {
         headers: getAuthHeaders(),
-      });
-      if (ordersRes.ok) {
-        const ordersData = await ordersRes.json();
-        const rawOrders = ordersData.data || ordersData;
-        if (Array.isArray(rawOrders)) {
+      }).catch(() => null);
+      if (ordersRes && ordersRes.ok) {
+        const ordersData = await ordersRes.json().catch(() => null);
+        const rawOrders = ordersData?.data || ordersData;
+        if (Array.isArray(rawOrders) && rawOrders.length > 0) {
           setOrders(rawOrders);
         }
       }
 
-      const catRes = await fetch(`${API_BASE_URL}/categories`);
-      if (catRes.ok) {
-        const catData = await catRes.json();
-        const rawCats = catData.data || catData;
+      const catRes = await fetch(`${API_BASE_URL}/categories`).catch(() => null);
+      if (catRes && catRes.ok) {
+        const catData = await catRes.json().catch(() => null);
+        const rawCats = catData?.data || catData;
         if (Array.isArray(rawCats) && rawCats.length > 0) {
           setCategories(rawCats);
         }
       }
     } catch (err) {
-      console.error("Error loading application state from backend:", err);
-    } finally {
-      setLoading(false);
+      console.warn("Using local storage data for application state:", err);
     }
   };
 

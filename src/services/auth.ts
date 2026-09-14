@@ -19,8 +19,15 @@ const DEFAULT_PASSWORD = "admin"; // Default easy login for admin
 
 export const authService = {
   getStoredPassword(): string {
-    const p = localStorage.getItem(PASSWORD_KEY);
-    return p || DEFAULT_PASSWORD;
+    try {
+      if (typeof window !== "undefined" && window.localStorage) {
+        const p = localStorage.getItem(PASSWORD_KEY);
+        return p || DEFAULT_PASSWORD;
+      }
+      return DEFAULT_PASSWORD;
+    } catch (_) {
+      return DEFAULT_PASSWORD;
+    }
   },
 
   async login(identifier: string, passwordAttempt: string, remember = true): Promise<AdminUser> {
@@ -75,8 +82,12 @@ export const authService = {
   },
 
   async logout(): Promise<void> {
-    localStorage.removeItem(STORAGE_KEYS.AUTH);
-    window.dispatchEvent(new CustomEvent("pb-storage-change", { detail: { key: STORAGE_KEYS.AUTH, value: null } }));
+    try {
+      if (typeof window !== "undefined" && window.localStorage) {
+        localStorage.removeItem(STORAGE_KEYS.AUTH);
+        window.dispatchEvent(new CustomEvent("pb-storage-change", { detail: { key: STORAGE_KEYS.AUTH, value: null } }));
+      }
+    } catch (_) {}
   },
 
   async changePassword(currentPasswordAttempt: string, newPassword: string): Promise<boolean> {
@@ -88,7 +99,11 @@ export const authService = {
       throw new Error("New password must be at least 4 characters long.");
     }
 
-    localStorage.setItem(PASSWORD_KEY, newPassword);
+    try {
+      if (typeof window !== "undefined" && window.localStorage) {
+        localStorage.setItem(PASSWORD_KEY, newPassword);
+      }
+    } catch (_) {}
     return true;
   },
 };
